@@ -6,23 +6,23 @@ DROP TABLE IF EXISTS employees;
 DROP TABLE IF EXISTS sales;
 
 CREATE TABLE customers (
-  cust_id SMALLINT,
+  cust_id SERIAL PRIMARY KEY,
   customer varchar(20),
   cust_acct varchar(10)
 );
 
 CREATE TABLE products (
-  prod_id SMALLINT,
+  prod_id SERIAL PRIMARY KEY,
   product varchar(30)
 );
 
 CREATE TABLE frequency (
-  freq_id SMALLINT,
+  freq_id SERIAL PRIMARY KEY,
   frequency varchar(15)
 );
 
 CREATE TABLE employees (
-  emp_id SMALLINT,
+  emp_id SERIAL PRIMARY KEY,
   employee varchar(30),
   email varchar(40)
 );

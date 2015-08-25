@@ -14,11 +14,6 @@ def db_connection
   end
 end
 
-def find_max(target_column)
-  sql = "SELECT max(#{target_column}) from sales;"
-  db_connection { |conn| conn.exec(sql)[0]['max'] }
-end
-
 def data_exist?(table, target_column, target)
   sql = "SELECT * FROM #{table} WHERE #{target_column}='#{target}'"
   result = db_connection { |conn| conn.exec(sql).to_a }
@@ -33,11 +28,6 @@ def find_id(table, id_column, name_column, name)
   sql = "SELECT #{id_column} FROM #{table} WHERE #{name_column}='#{name}'"
   db_connection { |conn| conn.exec(sql)[0][id_column] }
 end
-
-customer_counter = find_max('cust_id').to_i
-product_counter = find_max('prod_id').to_i
-frequency_counter = find_max('freq_id').to_i
-employee_counter = find_max('emp_id').to_i
 
 CSV.foreach('sales.csv', headers: true, header_converters: :symbol) do |row|
   sale = row.to_hash
@@ -60,38 +50,30 @@ CSV.foreach('sales.csv', headers: true, header_converters: :symbol) do |row|
 
   #checks if customer exists, if not enters it to customers table
   if !data_exist?('customers', 'cust_acct', customer_acct)
-    customer_counter += 1
-    sql = "INSERT INTO customers (cust_id, customer, cust_acct)
-           VALUES ($1, $2, $3);"
-    values = [customer_counter.to_s, customer_name, customer_acct]
-    db_connection { |conn| conn.exec(sql, values)}
+    sql = "INSERT INTO customers (customer, cust_acct)
+           VALUES ($1, $2);"
+    db_connection { |conn| conn.exec(sql, [customer_name, customer_acct]) }
   end
 
   #checks if product exists, if not enters it to products table
   if !data_exist?('products', 'product', product_name)
-    product_counter += 1
-    sql = "INSERT INTO products (prod_id, product)
-           VALUES ($1, $2);"
-    values = [product_counter.to_s, product_name]
-    db_connection { |conn| conn.exec(sql, values)}
+    sql = "INSERT INTO products (product)
+           VALUES ($1);"
+    db_connection { |conn| conn.exec(sql, [product_name]) }
   end
 
   #checks if frequency exists, if not enters it to frequency table
   if !data_exist?('frequency', 'frequency', frequency_type)
-    frequency_counter += 1
-    sql = "INSERT INTO frequency (freq_id, frequency)
-           VALUES ($1, $2);"
-    values = [frequency_counter.to_s, frequency_type]
-    db_connection { |conn| conn.exec(sql, values)}
+    sql = "INSERT INTO frequency (frequency)
+           VALUES ($1);"
+    db_connection { |conn| conn.exec(sql, [frequency_type]) }
   end
 
   #checks if employee exists, if not enters it to employees table
   if !data_exist?('employees', 'employee', employee_name)
-    employee_counter += 1
-    sql = "INSERT INTO employees (emp_id, employee, email)
-           VALUES ($1, $2, $3);"
-    values = [employee_counter.to_s, employee_name, employee_email]
-    db_connection { |conn| conn.exec(sql, values)}
+    sql = "INSERT INTO employees (employee, email)
+           VALUES ($1, $2);"
+    db_connection { |conn| conn.exec(sql, [employee_name, employee_email]) }
   end
 
   #finds current id numbers
