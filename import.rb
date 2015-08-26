@@ -1,6 +1,7 @@
 require "pg"
 require "pry"
 require "csv"
+require_relative "sale"
 
 def db_connection
   begin
@@ -15,85 +16,73 @@ def data_exist?(table, target_column, target)
   sql = "SELECT * FROM #{table} WHERE #{target_column}='#{target}'"
   result = db_connection { |conn| conn.exec(sql).to_a }
   if result == []
-    return false
+    false
   else
-    return true
+    true
   end
 end
 
-def find_id(table, id_column, name_column, name)
-  sql = "SELECT #{id_column} FROM #{table} WHERE #{name_column}='#{name}'"
-  db_connection { |conn| conn.exec(sql)[0][id_column] }
+def find_id(table, name_column, name)
+  sql = "SELECT id FROM #{table} WHERE #{name_column}='#{name}'"
+  db_connection { |conn| conn.exec(sql)[0]['id'] }
 end
 
-def fill_invoice(values)
-  sql = "INSERT INTO sales (invoice_num, cust_id, prod_id, units_sold, amount_usd, sale_date, freq_id, emp_id)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8);"
-  db_connection { |conn| conn.exec(sql, values)}
+def add_stuff(sql, values)
+  db_connection { |conn| conn.exec(sql, values) }
 end
+
 
 CSV.foreach('sales.csv', headers: true, header_converters: :symbol) do |row|
-  sale = row.to_hash
-
-  customer_array = sale[:customer_and_account_no].split(" (")
-  customer_name = customer_array[0]
-  customer_acct = customer_array[1].delete ")"
-
-  employee_array = sale[:employee].split(" (")
-  employee_name = employee_array[0]
-  employee_email = employee_array[1].delete ")"
-
-  invoice = sale[:invoice_no]
-  product_name = sale[:product_name]
-  units_sold = sale[:units_sold]
-  amount_usd = sale[:sale_amount]
-  date = sale[:sale_date]
-  frequency_type = sale[:invoice_frequency]
-
+  sale = Sale.new(
+  row[:customer_and_account_no],
+  row[:employee],
+  row[:invoice_no],
+  row[:product_name],
+  row[:units_sold],
+  row[:sale_amount],
+  row[:sale_date],
+  row[:invoice_frequency]
+  )
 
   #checks if customer exists, if not enters it to customers table
-  if !data_exist?('customers', 'cust_acct', customer_acct)
+  unless data_exist?('customers', 'cust_acct', sale.customer_acct)
     sql = "INSERT INTO customers (customer, cust_acct)
            VALUES ($1, $2);"
-    db_connection { |conn| conn.exec(sql, [customer_name, customer_acct]) }
+    add_stuff(sql, [sale.customer_name, sale.customer_acct])
   end
 
   #checks if product exists, if not enters it to products table
-  if !data_exist?('products', 'product', product_name)
+  unless data_exist?('products', 'product', sale.product_name)
     sql = "INSERT INTO products (product)
            VALUES ($1);"
-    db_connection { |conn| conn.exec(sql, [product_name]) }
+    add_stuff(sql, [sale.product_name])
   end
 
-  #checks if frequency exists, if not enters it to frequency table
-  if !data_exist?('frequency', 'frequency', frequency_type)
-    sql = "INSERT INTO frequency (frequency)
+  #checks if frequency exists, if not enters it to frequencies table
+  unless data_exist?('frequencies', 'frequency', sale.frequency_type)
+    sql = "INSERT INTO frequencies (frequency)
            VALUES ($1);"
-    db_connection { |conn| conn.exec(sql, [frequency_type]) }
+    add_stuff(sql, [sale.frequency_type])
   end
 
   #checks if employee exists, if not enters it to employees table
-  if !data_exist?('employees', 'employee', employee_name)
+  unless data_exist?('employees', 'employee', sale.employee_name)
     sql = "INSERT INTO employees (employee, email)
            VALUES ($1, $2);"
-    db_connection { |conn| conn.exec(sql, [employee_name, employee_email]) }
+    add_stuff(sql, [sale.employee_name, sale.employee_email])
   end
 
   #finds current id numbers
-  customer_id = find_id('customers', 'cust_id', 'customer', customer_name)
-  product_id = find_id('products', 'prod_id', 'product', product_name)
-  frequency_id = find_id('frequency', 'freq_id', 'frequency', frequency_type)
-  employee_id = find_id('employees', 'emp_id', 'employee', employee_name)
+  customer_id = find_id('customers', 'customer', sale.customer_name)
+  product_id = find_id('products', 'product', sale.product_name)
+  frequency_id = find_id('frequencies', 'frequency', sale.frequency_type)
+  employee_id = find_id('employees', 'employee', sale.employee_name)
 
   #if invoice doesn't already exist, adds data to sales
-  values = [invoice, customer_id, product_id, units_sold, amount_usd, date, frequency_id, employee_id]
-  if !data_exist?('sales', 'invoice_num', invoice)
-    fill_invoice(values)
-  else
-    #this section is here because a sadist created this assignment
-    check = db_connection { |conn| conn.exec("SELECT sale_date FROM sales WHERE invoice_num='#{invoice}'")[0]['sale_date']}
-    if check != date
-      fill_invoice(values)
-    end
+  unless data_exist?('sales', 'invoice_no', sale.invoice_no)
+    sql = "INSERT INTO sales (invoice_no, cust_id, prod_id, units_sold, amount_usd, sale_date, freq_id, emp_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8);"
+    values = [sale.invoice_no, customer_id, product_id, sale.units_sold, sale.amount_usd, sale.date, frequency_id, employee_id]
+    add_stuff(sql, values)
   end
 end
