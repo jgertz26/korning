@@ -1,6 +1,3 @@
-# Use this file to import the sales information into the
-# the database.
-
 require "pg"
 require "pry"
 require "csv"
@@ -27,6 +24,12 @@ end
 def find_id(table, id_column, name_column, name)
   sql = "SELECT #{id_column} FROM #{table} WHERE #{name_column}='#{name}'"
   db_connection { |conn| conn.exec(sql)[0][id_column] }
+end
+
+def fill_invoice(values)
+  sql = "INSERT INTO sales (invoice_num, cust_id, prod_id, units_sold, amount_usd, sale_date, freq_id, emp_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8);"
+  db_connection { |conn| conn.exec(sql, values)}
 end
 
 CSV.foreach('sales.csv', headers: true, header_converters: :symbol) do |row|
@@ -83,10 +86,14 @@ CSV.foreach('sales.csv', headers: true, header_converters: :symbol) do |row|
   employee_id = find_id('employees', 'emp_id', 'employee', employee_name)
 
   #if invoice doesn't already exist, adds data to sales
+  values = [invoice, customer_id, product_id, units_sold, amount_usd, date, frequency_id, employee_id]
   if !data_exist?('sales', 'invoice_num', invoice)
-    sql = "INSERT INTO sales (invoice_num, cust_id, prod_id, units_sold, amount_usd, sale_date, freq_id, emp_id)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8);"
-    values = [invoice, customer_id, product_id, units_sold, amount_usd, date, frequency_id, employee_id]
-    db_connection { |conn| conn.exec(sql, values)}
+    fill_invoice(values)
+  else
+    #this section is here because a sadist created this assignment
+    check = db_connection { |conn| conn.exec("SELECT sale_date FROM sales WHERE invoice_num='#{invoice}'")[0]['sale_date']}
+    if check != date
+      fill_invoice(values)
+    end
   end
 end
